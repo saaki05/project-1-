@@ -1,0 +1,27 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install CPU PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install packages in dependency order
+        run: |
+          pip install -e "graphshield-data-engine[dev]"
+          pip install -e "graphshield-model-lab[dev]"
+          pip install -e "graphshield-intelligence[dev]"
+      - run: ruff check .
+      - run: pytest -q graphshield-data-engine
+      - run: pytest -q graphshield-model-lab
+      - run: pytest -q graphshield-intelligence

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphshield-intelligence"
+version = "0.1.0"
+description = "Scoring, explanation and drift-monitoring service for GraphShield transaction-graph models."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "graphshield-model-lab>=0.1,<0.2",
+    "torch>=2.1",
+    "numpy>=1.24",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "pydantic>=2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4", "httpx>=0.27"]
+
+[project.scripts]
+graphshield-serve = "graphshield_service.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

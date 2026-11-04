@@ -1,0 +1,80 @@
+import numpy as np
+import pytest
+from graphshield_data import temporal_split
+from graphshield_data.synthetic import make_synthetic_graph
+from sklearn.metrics import average_precision_score
+
+from graphshield_lab import metrics as M
+from graphshield_lab.cli import run_experiment
+from graphshield_lab.runner import TrainConfig, available_models, evaluate, run_model
+
+
+def test_metrics_hand_computed():
+    y = np.array([1, 0, 1, 0, 0])
+    p = np.array([0.9, 0.8, 0.4, 0.3, 0.1])
+    assert M.precision_at_k(y, p, 2) == 0.5
+    assert M.f1_at(y, p, 0.5) == pytest.approx(0.5)  # tp=1, fp=1, fn=1
+    assert M.pr_auc(y, p) == pytest.approx(average_precision_score(y, p))
+    assert M.ece(np.array([1, 1, 0, 0]), np.array([1.0, 1.0, 0.0, 0.0])) == 0.0
+    assert M.ece(np.array([0, 0]), np.array([0.95, 0.95])) == pytest.approx(0.95)
+
+
+def test_bootstrap_ci_contains_point_estimate():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 400)
+    p = np.clip(y * 0.4 + rng.random(400) * 0.6, 0, 1)
+    lo, hi = M.bootstrap_ci(M.pr_auc, y, p, n_boot=300)
+    assert lo <= M.pr_auc(y, p) <= hi
+
+
+def test_paired_bootstrap_detects_clear_difference():
+    rng = np.random.default_rng(1)
+    y = rng.integers(0, 2, 600)
+    good = np.clip(y * 0.5 + rng.random(600) * 0.5, 0, 1)
+    noise = rng.random(600)
+    res = M.paired_bootstrap_diff(M.pr_auc, y, good, noise, n_boot=300)
+    assert res["diff"] > 0.1 and res["ci_low"] > 0 and res["p_value"] < 0.05
+    same = M.paired_bootstrap_diff(M.pr_auc, y, good, good, n_boot=100)
+    assert same["diff"] == 0.0
+
+
+@pytest.fixture(scope="module")
+def setup():
+    g = make_synthetic_graph(num_steps=14, nodes_per_step=150, num_features=10,
+                             labelled_fraction=0.8, seed=5)
+    split = temporal_split(g, (1, 8), (9, 10), (11, 14))
+    return g, split
+
+
+@pytest.mark.parametrize("name", ["logreg", "hgb+agg", "mlp", "gcn", "sage", "gat"])
+def test_models_beat_chance_on_synthetic(setup, name):
+    g, split = setup
+    pred = run_model(name, g, split, seed=0, cfg=TrainConfig(epochs=60, patience=15))
+    y = g.labels[split.test]
+    assert M.pr_auc(y, pred.test_prob) > 2 * y.mean()
+
+
+def test_training_is_reproducible(setup):
+    g, split = setup
+    cfg = TrainConfig(epochs=25, patience=25)
+    a = run_model("gcn", g, split, seed=3, cfg=cfg)
+    b = run_model("gcn", g, split, seed=3, cfg=cfg)
+    assert np.allclose(a.test_prob, b.test_prob)
+
+
+def test_run_experiment_summary_and_audit_gate(setup):
+    g, split = setup
+    result = run_experiment(g, split, ["logreg", "sage"], [0, 1], TrainConfig(epochs=20))
+    assert set(result["summary"]) == {"logreg", "sage"}
+    assert 0.0 <= result["summary"]["sage"]["pr_auc"]["mean"] <= 1.0
+    leaky = type(split)(split.name, split.train, split.val, split.test | split.train)
+    with pytest.raises(RuntimeError, match="leakage audit"):
+        run_experiment(g, leaky, ["logreg"], [0])
+
+
+def test_evaluate_uses_validation_threshold(setup):
+    g, split = setup
+    pred = run_model("logreg", g, split, seed=0)
+    m = evaluate(pred, g, split)
+    assert set(m) >= {"pr_auc", "roc_auc", "f1", "mcc", "precision_at_100", "ece"}
+    assert "gat" in available_models()
