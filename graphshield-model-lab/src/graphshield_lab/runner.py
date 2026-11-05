@@ -63,7 +63,8 @@ def _threshold_and_probs(y_val, val_prob):
 
 
 def run_model(
-    name: str, graph: GraphData, split: Split, seed: int, cfg: TrainConfig | None = None
+    name: str, graph: GraphData, split: Split, seed: int, cfg: TrainConfig | None = None,
+    params: dict | None = None,
 ) -> Prediction:
     """Train ``name`` under the protocol and return validation/test probabilities."""
     cfg = cfg or TrainConfig()
@@ -89,7 +90,7 @@ def run_model(
             # neighbourhood computed on the past-only graph for training, full visible graph
             # for evaluation; edges stay within time steps so both agree on train nodes.
             feats = np.concatenate([x, neighbour_mean(x, ei)], axis=1)
-        clf = make_baseline(base, seed).fit(feats[tr], y[tr].astype(int))
+        clf = make_baseline(base, seed, params).fit(feats[tr], y[tr].astype(int))
         return _finish(name, seed, clf.predict_proba(feats[va])[:, 1],
                        clf.predict_proba(feats[te])[:, 1], y[va])
 

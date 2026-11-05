@@ -1,0 +1,16 @@
+{
+  "upu": {
+    "edges_among_labelled": 294764,
+    "edge_homophily": 0.7852180049124045,
+    "expected_if_random": 0.8279946834294487,
+    "base_fraud_rate": 0.09503414747077207,
+    "fraud_neighbour_share_of_fraud_nodes": 0.17670160472313975
+  },
+  "uvu": {
+    "edges_among_labelled": 1386088,
+    "edge_homophily": 0.9610847218935594,
+    "expected_if_random": 0.8279946834294487,
+    "base_fraud_rate": 0.09503414747077207,
+    "fraud_neighbour_share_of_fraud_nodes": 0.06419153365718251
+  }
+}

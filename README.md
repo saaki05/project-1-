@@ -18,6 +18,8 @@ graphshield-data-engine  ──▶  graphshield-model-lab  ──▶  graphshiel
 
 Each package has its own `pyproject.toml`, tests and README.
 
+![GraphShield architecture: data engine, model lab, intelligence service](docs/figures/architecture.png)
+
 ## Research question
 
 On the Elliptic Bitcoin transaction graph, published GNN results are hard to compare because
@@ -71,7 +73,11 @@ features; the first 3,305 placeholder nodes are excluded as unlabelled). Fresh s
 | GCN | 0.552 ± 0.017 | 0.875 ± 0.007 | 0.520 ± 0.010 | 0.820 ± 0.036 |
 | GAT | 0.596 ± 0.063 | 0.893 ± 0.012 | 0.573 ± 0.067 | 0.843 ± 0.036 |
 
+![PR-AUC of every model over ten random splits](docs/figures/model_comparison.png)
+
 Paired by seed (same split for every model), PR-AUC differences with bootstrap 95% CIs:
+
+![Paired PR-AUC differences to plain gradient boosting](docs/figures/paired_contrasts.png)
 
 - gradient boosting with neighbour-averaged features beats plain gradient boosting by +0.017
   [+0.013, +0.021] (10/10 seeds) and beats GraphSAGE by 0.054 [0.047, 0.063] (10/10 seeds);
@@ -81,6 +87,8 @@ Paired by seed (same split for every model), PR-AUC differences with bootstrap 9
 The denser UVU relation (2.07 M edges, 3 seeds, 60 epochs) gives the same ordering: gradient
 boosting + neighbour features 0.917 ± 0.008, plain gradient boosting 0.905 ± 0.005, GraphSAGE
 0.862 ± 0.008, GCN 0.574 ± 0.025.
+
+![Share of a fraud user's neighbours that are fraud](docs/figures/neighbourhood.png)
 
 **Reading these results.** On this graph an untuned tree ensemble matches or beats
 every GNN, and most of what graph structure contributes is captured by simply averaging
@@ -116,6 +124,16 @@ for d in graphshield-*; do (cd $d && pytest -q); done
 ```
 
 CI (`.github/workflows/ci.yml`) installs the three packages together and runs lint and tests.
+
+## Regenerating the figures
+
+Every figure in `docs/figures/` is produced from the result files by a script (no number is
+typed by hand). `pip install matplotlib`, then:
+
+```bash
+python scripts/amazon_homophily.py /path/to/Amazon.mat graphshield-model-lab/results/amazon/homophily.json
+python scripts/make_figures.py
+```
 
 ## License
 

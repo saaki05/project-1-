@@ -132,3 +132,38 @@ def test_static_study_runs_end_to_end_with_paired_contrasts(tmp_path, capsys):
                      "--seeds", "0", "1", "--epochs", "10", "--out", str(tmp_path / "o.json")])
     assert code == 0 and (tmp_path / "o.json").exists()
     assert "PR-AUC" in capsys.readouterr().out
+
+
+def test_tuning_pool_never_overlaps_evaluation_labels():
+    from graphshield_lab.tune import split_tuning_pool
+
+    g = make_synthetic_graph(num_steps=3, nodes_per_step=300, num_features=6, labelled_fraction=0.9,
+                             seed=8)
+    tune_g, eval_g = split_tuning_pool(g, 0.25, seed=1)
+    tuned, evald = tune_g.labels >= 0, eval_g.labels >= 0
+    assert not (tuned & evald).any()  # disjoint label sets
+    assert ((tuned | evald) == (g.labels >= 0)).all()  # together they cover every label
+    assert abs(tuned.sum() / (g.labels >= 0).sum() - 0.25) < 0.02
+    assert (tune_g.labels[tuned] == g.labels[tuned]).all()
+
+
+def test_tune_model_returns_best_params_and_runs_in_study(tmp_path):
+    from graphshield_lab.static import run_static_study
+    from graphshield_lab.tune import apply_best, split_tuning_pool, tune_model
+
+    g = make_synthetic_graph(num_steps=3, nodes_per_step=300, num_features=6, labelled_fraction=0.9,
+                             seed=9)
+    tg, eg = split_tuning_pool(g, 0.3)
+    base = TrainConfig(epochs=15, patience=15)
+    t_tab = tune_model(tg, "logreg", n_trials=3, base_cfg=base)
+    t_nn = tune_model(tg, "sage", n_trials=2, base_cfg=base)
+    assert set(t_tab["best"]) == {"C"} and len(t_tab["trials"]) == 3
+    assert t_tab["best_score"] == max(t["val_pr_auc"] for t in t_tab["trials"])
+    assert {"hidden", "lr", "dropout"} <= set(t_nn["best"])
+    cfg_nn, params_nn = apply_best("sage", t_nn, base)
+    cfg_tab, params_tab = apply_best("logreg", t_tab, base)
+    assert params_nn is None and cfg_nn.hidden == t_nn["best"]["hidden"]
+    assert params_tab == t_tab["best"]
+    res = run_static_study(eg, ["logreg", "sage"], [0, 1], base, model_cfgs={"sage": cfg_nn},
+                           model_params={"logreg": params_tab}, references=("logreg",))
+    assert res["tuned"] and set(res["summary"]) == {"logreg", "sage"}

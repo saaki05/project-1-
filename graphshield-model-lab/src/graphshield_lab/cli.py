@@ -81,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
                     default=["logreg", "rf", "hgb", "hgb+agg", "mlp", "gcn", "sage", "gat"])
     st.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4])
     st.add_argument("--epochs", type=int, default=100)
+    st.add_argument("--tune-trials", type=int, default=0,
+                    help="random-search trials per model on a reserved tuning pool (0 = off)")
+    st.add_argument("--pool-fraction", type=float, default=0.2)
     st.add_argument("--out", default=None)
     dr = sub.add_parser("drift", help="static vs rolling-window retraining, block by block")
     dr.add_argument("--data", required=True)
@@ -106,7 +109,28 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit("give exactly one of --amazon or --data")
         graph = (load_amazon(args.amazon, args.relation) if args.amazon
                  else load_graph(args.data))
-        res = run_static_study(graph, args.models, args.seeds, TrainConfig(epochs=args.epochs))
+        base = TrainConfig(epochs=args.epochs)
+        extra = {}
+        if args.tune_trials:
+            from graphshield_lab.tune import apply_best, split_tuning_pool, tune_model
+
+            tune_graph, graph = split_tuning_pool(graph, args.pool_fraction)
+            tuned, cfgs, params, done = {}, {}, {}, {}
+            for name in args.models:
+                key = name.removesuffix("+agg")
+                if key not in done:  # +agg variants reuse the base model's search
+                    done[key] = tune_model(tune_graph, key if key in ("mlp", "gcn", "sage", "gat")
+                                           else name, args.tune_trials, base_cfg=base)
+                tuned[name] = done[key]
+                cfgs[name], params[name] = apply_best(name, done[key], base)
+                cfgs[name] = cfgs[name] if params[name] is None else base
+            extra = {"model_cfgs": cfgs, "model_params": {k: v for k, v in params.items() if v}}
+        res = run_static_study(graph, args.models, args.seeds, base, **extra)
+        if args.tune_trials:
+            res["tuning"] = {k: {"best": v["best"], "best_val_pr_auc": v["best_score"],
+                                 "default_val_pr_auc": v["default_score"],
+                                 "n_trials": v["n_trials"]} for k, v in tuned.items()}
+            res["tuning_pool_fraction"] = args.pool_fraction
         print(render_static(res))
         if args.out:
             Path(args.out).write_text(json.dumps(res, indent=2))

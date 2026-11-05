@@ -25,9 +25,15 @@ def _bootstrap_ci(values: np.ndarray, n_boot: int = 4000, seed: int = 0) -> tupl
 
 def run_static_study(graph: GraphData, models: list[str], seeds: list[int],
                      cfg: TrainConfig | None = None, fractions=(0.4, 0.2, 0.4),
-                     references: tuple[str, ...] = ("hgb", "hgb+agg")) -> dict:
-    """Run every model on a fresh stratified split per seed; summarise with paired contrasts."""
+                     references: tuple[str, ...] = ("hgb", "hgb+agg"),
+                     model_cfgs: dict | None = None, model_params: dict | None = None) -> dict:
+    """Run every model on a fresh stratified split per seed; summarise with paired contrasts.
+
+    ``model_cfgs`` / ``model_params`` optionally give a tuned ``TrainConfig`` (neural models) or
+    sklearn parameter dict (tabular models) per model name.
+    """
     cfg = cfg or TrainConfig()
+    model_cfgs, model_params = model_cfgs or {}, model_params or {}
     per_seed: dict[str, list[dict]] = {m: [] for m in models}
     for seed in seeds:
         split = stratified_split(graph, fractions, seed)
@@ -35,7 +41,9 @@ def run_static_study(graph: GraphData, models: list[str], seeds: list[int],
         if not report.ok:
             raise RuntimeError("split failed the audit:\n" + report.format())
         for name in models:
-            per_seed[name].append(evaluate(run_model(name, graph, split, seed, cfg), graph, split))
+            pred = run_model(name, graph, split, seed, model_cfgs.get(name, cfg),
+                             model_params.get(name))
+            per_seed[name].append(evaluate(pred, graph, split))
 
     summary = {}
     for name, rows in per_seed.items():
@@ -61,6 +69,7 @@ def run_static_study(graph: GraphData, models: list[str], seeds: list[int],
             "fractions": list(fractions), "seeds": list(seeds), "models": models,
             "config": {"hidden": cfg.hidden, "epochs": cfg.epochs, "patience": cfg.patience,
                        "lr": cfg.lr, "dropout": cfg.dropout},
+            "tuned": bool(model_cfgs or model_params),
             "summary": summary, "pr_auc_contrasts": contrasts, "per_seed": per_seed}
 
 

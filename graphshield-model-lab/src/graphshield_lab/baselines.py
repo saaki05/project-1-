@@ -26,15 +26,21 @@ def neighbour_mean(x: np.ndarray, edge_index: np.ndarray, symmetric: bool = True
     return (adj @ x) / np.maximum(deg, 1.0)[:, None]
 
 
-def make_baseline(name: str, seed: int):
+def make_baseline(name: str, seed: int, params: dict | None = None):
+    """Build a sklearn model; ``params`` overrides the defaults (used by hyper-parameter search)."""
+    p = params or {}
     if name == "logreg":
-        return LogisticRegression(max_iter=2000, class_weight="balanced", random_state=seed)
+        return LogisticRegression(max_iter=2000, class_weight="balanced", random_state=seed,
+                                  C=p.get("C", 1.0))
     if name == "rf":
         return RandomForestClassifier(
-            n_estimators=200, class_weight="balanced_subsample", n_jobs=-1, random_state=seed
-        )
+            n_estimators=p.get("n_estimators", 200), min_samples_leaf=p.get("min_samples_leaf", 1),
+            max_features=p.get("max_features", "sqrt"), class_weight="balanced_subsample",
+            n_jobs=-1, random_state=seed)
     if name == "hgb":
         return HistGradientBoostingClassifier(
-            max_iter=200, learning_rate=0.1, class_weight="balanced", random_state=seed
-        )
+            max_iter=p.get("max_iter", 200), learning_rate=p.get("learning_rate", 0.1),
+            max_leaf_nodes=p.get("max_leaf_nodes", 31),
+            l2_regularization=p.get("l2_regularization", 0.0), class_weight="balanced",
+            random_state=seed)
     raise ValueError(f"unknown baseline {name!r}")
