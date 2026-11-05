@@ -94,3 +94,28 @@ def test_matches_torch_geometric_when_available(graph):
         theirs.lin.weight.copy_(ours.lin.weight)
         theirs.bias.copy_(ours.bias)
     assert torch.allclose(ours(x, ei), theirs(x, ei), atol=1e-5)
+
+
+def test_sage_matches_torch_geometric_when_available(graph):
+    pyg = pytest.importorskip("torch_geometric.nn")
+    x, ei = graph
+    ours = SAGELayer(5, 4)
+    theirs = pyg.SAGEConv(5, 4, aggr="mean")
+    with torch.no_grad():
+        theirs.lin_l.weight.copy_(ours.lin_neigh.weight)
+        theirs.lin_l.bias.copy_(ours.lin_self.bias)
+        theirs.lin_r.weight.copy_(ours.lin_self.weight)
+    assert torch.allclose(ours(x, ei), theirs(x, ei), atol=1e-5)
+
+
+def test_gat_matches_torch_geometric_when_available(graph):
+    pyg = pytest.importorskip("torch_geometric.nn")
+    x, ei = graph
+    ours = GATLayer(5, 3, heads=2, concat=True).eval()
+    theirs = pyg.GATConv(5, 3, heads=2, concat=True, dropout=0.0).eval()
+    with torch.no_grad():
+        theirs.lin.weight.copy_(ours.lin.weight)
+        theirs.att_src.copy_(ours.att_src)
+        theirs.att_dst.copy_(ours.att_dst)
+        theirs.bias.copy_(ours.bias)
+    assert torch.allclose(ours(x, ei), theirs(x, ei), atol=1e-5)

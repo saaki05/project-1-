@@ -38,7 +38,7 @@ architecture.
 |---|---|
 | Data engine, GNN layers, baselines, metrics, protocol, service | implemented; unit tests pass |
 | Layers verified against dense reference computations | yes |
-| Cross-check against PyTorch Geometric | test written; not yet executed (PyG not installed) |
+| Cross-check against PyTorch Geometric | GCN, GraphSAGE and GAT layers match `torch_geometric` outputs to 1e-5 (tests run when PyG is installed; verified in development) |
 | Experiments on the real Elliptic dataset | **not run**: the data must be downloaded under its own license and the work needs your Kaggle/Colab account |
 | Hyperparameter search, ablations, statistical comparison tables | **not run** |
 | Docker image | Dockerfile written, never built |

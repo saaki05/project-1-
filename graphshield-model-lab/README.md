@@ -10,7 +10,7 @@ graph neural networks against tabular baselines under one leak-aware protocol.
 | Component | Details |
 |---|---|
 | Graph layers | `GCNLayer`, `SAGELayer` (mean), `GATLayer` (multi-head) written on edge lists with scatter ops, no `torch_geometric` dependency |
-| Layer verification | Each layer is tested against a dense-matrix reference; GCN is additionally cross-checked against PyG when installed (`pip install -e ".[crosscheck]"`) |
+| Layer verification | Each layer is tested against a dense-matrix reference and cross-checked numerically against the matching `torch_geometric` layer (GCN, GraphSAGE, GAT) when PyG is installed (`pip install -e ".[crosscheck]"`) |
 | Baselines | Logistic regression, random forest, histogram gradient boosting; `+agg` variants add one-hop mean neighbour features to test how much of a GNN's gain is neighbourhood averaging |
 | Neural feature-only baseline | `mlp` |
 | Metrics | PR-AUC, ROC-AUC, F1 and MCC at a validation-chosen threshold, precision@k, ECE, per-time-step metrics, bootstrap CIs, paired bootstrap difference tests |
