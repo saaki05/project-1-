@@ -115,12 +115,16 @@ def main(argv: list[str] | None = None) -> int:
             from graphshield_lab.tune import apply_best, split_tuning_pool, tune_model
 
             tune_graph, graph = split_tuning_pool(graph, args.pool_fraction)
-            tuned, cfgs, params, done = {}, {}, {}, {}
+            cache = Path(args.out + ".tuning.json") if args.out else None
+            done = json.loads(cache.read_text()) if cache and cache.exists() else {}
+            tuned, cfgs, params = {}, {}, {}
             for name in args.models:
                 key = name.removesuffix("+agg")
                 if key not in done:  # +agg variants reuse the base model's search
                     done[key] = tune_model(tune_graph, key if key in ("mlp", "gcn", "sage", "gat")
                                            else name, args.tune_trials, base_cfg=base)
+                    if cache:  # keep progress: a crash must not lose hours of search
+                        cache.write_text(json.dumps(done))
                 tuned[name] = done[key]
                 cfgs[name], params[name] = apply_best(name, done[key], base)
                 cfgs[name] = cfgs[name] if params[name] is None else base

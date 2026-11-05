@@ -167,3 +167,16 @@ def test_tune_model_returns_best_params_and_runs_in_study(tmp_path):
     res = run_static_study(eg, ["logreg", "sage"], [0, 1], base, model_cfgs={"sage": cfg_nn},
                            model_params={"logreg": params_tab}, references=("logreg",))
     assert res["tuned"] and set(res["summary"]) == {"logreg", "sage"}
+
+
+def test_tune_model_handles_every_family_including_gat_default_scoring():
+    from graphshield_lab.tune import tune_model
+
+    g = make_synthetic_graph(num_steps=2, nodes_per_step=150, num_features=6, labelled_fraction=0.9,
+                             seed=12)
+    from graphshield_lab.tune import split_tuning_pool
+    tg, _ = split_tuning_pool(g, 0.4)
+    base = TrainConfig(epochs=4, patience=4)
+    for name in ("gat", "gcn", "mlp", "rf", "hgb+agg"):
+        res = tune_model(tg, name, n_trials=1, base_cfg=base)
+        assert res["n_trials"] == 1 and res["default_score"] >= -1.0, name

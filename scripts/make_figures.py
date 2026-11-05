@@ -29,7 +29,7 @@ def kind(name):
 
 
 def model_comparison():
-    d = json.load(open(RES / "static_upu.json"))
+    d = json.load(open(RES / "static_upu_tuned.json"))
     order = sorted(d["summary"], key=lambda m: d["summary"][m]["pr_auc"]["mean"])
     fig, ax = plt.subplots(figsize=(8.2, 4.6))
     for i, m in enumerate(order):
@@ -43,7 +43,7 @@ def model_comparison():
     ax.set_yticks(range(len(order)), [LABEL[m] for m in order])
     ax.set_xlabel("PR-AUC on the test split (10 random splits; dot = one split, bar = ±1 std)")
     ax.set_xlim(0.45, 1.0)
-    ax.set_title("Amazon fraud graph: tabular models with neighbour features beat every GNN")
+    ax.set_title("Amazon fraud graph: PR-AUC of every model after hyper-parameter search")
     ax.grid(axis="y", visible=False)
     for c, t in ((fs.BLUE, "tabular + neighbour mean"), (fs.GRAY, "tabular / MLP"),
                  (fs.ORANGE, "graph neural network")):
@@ -53,7 +53,7 @@ def model_comparison():
 
 
 def contrasts():
-    d = json.load(open(RES / "static_upu.json"))["pr_auc_contrasts"]["hgb"]
+    d = json.load(open(RES / "static_upu_tuned.json"))["pr_auc_contrasts"]["hgb"]
     names = sorted(d, key=lambda m: d[m]["mean_diff"])
     fig, ax = plt.subplots(figsize=(8.2, 4.0))
     ax.axvline(0, color=fs.MUTED, lw=1)
@@ -64,9 +64,9 @@ def contrasts():
         ax.text(1.02, i, f"{c['mean_diff']:+.3f}   {c['wins']}/{c['n']} splits better", va="center",
                 ha="left", fontsize=8.3, color=fs.INK2, transform=ax.get_yaxis_transform())
     ax.set_yticks(range(len(names)), [LABEL[m] for m in names])
-    ax.set_xlabel("PR-AUC difference to plain gradient boosting (paired by split, 95% bootstrap CI)")
+    ax.set_xlabel("PR-AUC difference to tuned gradient boosting (paired by split, 95% bootstrap CI)")
     ax.set_xlim(-0.42, 0.12)
-    ax.set_title("PR-AUC difference to plain gradient boosting, paired by split")
+    ax.set_title("PR-AUC difference to tuned gradient boosting, paired by split")
     ax.grid(axis="y", visible=False)
     fs.save(fig, OUT / "paired_contrasts.png")
 
@@ -82,15 +82,15 @@ def tuned_comparison():
     for i, m in enumerate(order):
         a, b = d["summary"][m]["pr_auc"]["mean"], t["summary"][m]["pr_auc"]["mean"]
         ax.plot([a, b], [i, i], color=fs.GRID, lw=3, zorder=1)
-        ax.scatter([a], [i], color=fs.GRAY, s=55, zorder=3, edgecolor=fs.SURFACE,
-                   label="default settings" if i == 0 else None)
+        ax.scatter([a], [i], facecolor="none", edgecolor=fs.INK2, linewidth=1.6, s=62, zorder=3,
+                   label="default settings (hollow)" if i == 0 else None)
         ax.scatter([b], [i], color=kind(m), s=60, zorder=4, edgecolor=fs.SURFACE)
         ax.text(max(a, b) + 0.012, i, f"{b:.3f}  ({b - a:+.3f})", va="center", fontsize=8.5,
                 color=fs.INK2)
     ax.set_yticks(range(len(order)), [LABEL[m] for m in order])
     ax.set_xlim(0.45, 1.02)
-    ax.set_xlabel("PR-AUC (mean of 10 splits); grey = default settings, colour = after random search")
-    ax.set_title("Hyper-parameter search per model family (same budget for all)")
+    ax.set_xlabel("PR-AUC (mean of 10 splits). Hollow = default settings, filled = after random search.\nThe tuned run reserves 20% of the labelled nodes for tuning, so the two runs use different test nodes.")
+    ax.set_title("Default settings against settings found by random search")
     ax.grid(axis="y", visible=False)
     for c, lab in ((fs.BLUE, "tabular + neighbour mean"), (fs.GRAY, "tabular / MLP"),
                    (fs.ORANGE, "graph neural network")):

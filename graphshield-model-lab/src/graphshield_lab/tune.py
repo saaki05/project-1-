@@ -23,7 +23,7 @@ TABULAR_SPACES = {
     "hgb": {"learning_rate": [0.03, 0.05, 0.1, 0.2], "max_iter": [100, 200, 400],
             "max_leaf_nodes": [15, 31, 63], "l2_regularization": [0.0, 0.1, 1.0]},
 }
-NN_SPACE = {"hidden": [32, 64, 128, 256], "num_layers": [1, 2, 3], "lr": [1e-3, 3e-3, 1e-2],
+NN_SPACE = {"hidden": [32, 64, 128], "num_layers": [1, 2, 3], "lr": [1e-3, 3e-3, 1e-2],
             "dropout": [0.0, 0.3, 0.5], "weight_decay": [0.0, 5e-4, 5e-3]}
 NN_MODELS = ("mlp", "gcn", "sage", "gat")
 
@@ -67,7 +67,7 @@ def tune_model(graph: GraphData, name: str, n_trials: int = 12, tuning_seeds=(10
         vals = []
         for sp, s in zip(splits, tuning_seeds, strict=True):
             if nn_model:
-                if base == "gat" and candidate["hidden"] % cfg0.heads:
+                if base == "gat" and candidate.get("hidden", cfg0.hidden) % cfg0.heads:
                     return -1.0
                 pred = run_model(base, graph, sp, s, replace(cfg0, **candidate))
             else:

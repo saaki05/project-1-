@@ -42,7 +42,7 @@ architecture.
 | Layers verified against dense reference computations | yes |
 | Cross-check against PyTorch Geometric | GCN, GraphSAGE and GAT layers match `torch_geometric` outputs to 1e-5 (tests run when PyG is installed; verified in development) |
 | Experiments on the real Elliptic dataset (temporal) | **not run**: the download was unreachable from the development container |
-| Experiments on a real fraud graph (Amazon, static) | **run**, 10 seeds; see Results on real data |
+| Experiments on a real fraud graph (Amazon, static) | **run**: 10 seeds, defaults and an equal-budget random search with a leak-free tuning pool; see Results on real data |
 | Static-vs-rolling drift study (`graphshield-lab drift`) | implemented; tested on synthetic graphs with a built-in concept shift (rolling retraining wins there, as expected, which only shows the code works) |
 | Hyperparameter search, ablations, statistical comparison tables on real data | **not run**; `scripts/run_elliptic.sh` reproduces the planned runs once the data is available |
 | Docker image | Dockerfile written, never built |
@@ -56,53 +56,69 @@ the container has no GPU.
 
 ### Amazon fraud graph (static, no timestamps)
 
-Real user-review fraud graph (11,944 users; 8,639 labelled, 9.5% fraud; 25 handcrafted
-features; the first 3,305 placeholder nodes are excluded as unlabelled). Fresh stratified
-40/20/40 split per seed, transductive training, 10 seeds, user–product–user (UPU) relation
-(351,216 directed edges). Full tables and per-seed values:
-[`graphshield-model-lab/results/amazon/`](graphshield-model-lab/results/amazon). Mean ± std:
+Real user-review fraud graph: 11,944 users, 25 handcrafted features, user–product–user (UPU)
+relation with 351,216 directed edges. The first 3,305 nodes carry placeholder labels and are
+treated as unlabelled, leaving 8,639 labelled users (9.5% fraud). Full tables and per-seed
+values: [`graphshield-model-lab/results/amazon/`](graphshield-model-lab/results/amazon).
+
+**Protocol.** Each of 10 seeds draws a fresh stratified 40/20/40 train/validation/test split
+and every model is trained and tested on that same split (paired by seed). Training is
+transductive (the whole graph is visible, only training labels are used). Two runs:
+
+1. **Default settings** for every model (fixed GNN hyper-parameters: 2 layers, 64 hidden
+   units, 100 epochs).
+2. **Tuned**: an identical random-search budget (8 trials) for every model family, tabular and
+   graph. The search uses a *reserved tuning pool* of 20% of the labelled nodes whose labels are
+   hidden from the evaluation splits, so no node used to choose hyper-parameters is ever a
+   test node. This run therefore evaluates on 6,911 labelled nodes.
+
+![PR-AUC of every model after hyper-parameter search, over ten random splits](docs/figures/model_comparison.png)
+
+Tuned run, mean ± std over 10 splits:
 
 | model | PR-AUC | ROC-AUC | F1 | P@100 |
 |---|---|---|---|---|
-| logistic regression | 0.884 ± 0.013 | 0.970 ± 0.005 | 0.839 ± 0.017 | 0.965 ± 0.014 |
-| random forest | 0.898 ± 0.009 | 0.973 ± 0.006 | 0.847 ± 0.013 | 0.976 ± 0.010 |
-| gradient boosting (hgb) | 0.899 ± 0.008 | 0.973 ± 0.006 | 0.854 ± 0.011 | 0.977 ± 0.009 |
-| hgb + neighbour-mean features | **0.916 ± 0.012** | 0.977 ± 0.006 | **0.863 ± 0.014** | 0.993 ± 0.008 |
-| MLP | 0.867 ± 0.015 | 0.964 ± 0.005 | 0.837 ± 0.019 | 0.970 ± 0.013 |
-| GraphSAGE | 0.862 ± 0.016 | 0.966 ± 0.007 | 0.818 ± 0.019 | 0.962 ± 0.014 |
-| GCN | 0.552 ± 0.017 | 0.875 ± 0.007 | 0.520 ± 0.010 | 0.820 ± 0.036 |
-| GAT | 0.596 ± 0.063 | 0.893 ± 0.012 | 0.573 ± 0.067 | 0.843 ± 0.036 |
+| logistic regression | 0.886 ± 0.016 | 0.969 ± 0.004 | 0.839 ± 0.009 | 0.971 ± 0.012 |
+| random forest | **0.912 ± 0.012** | 0.979 ± 0.004 | 0.850 ± 0.022 | 0.980 ± 0.011 |
+| gradient boosting | 0.910 ± 0.010 | 0.980 ± 0.003 | 0.859 ± 0.016 | 0.982 ± 0.010 |
+| random forest + neighbour-mean features | 0.911 ± 0.012 | 0.977 ± 0.005 | 0.852 ± 0.022 | 0.982 ± 0.013 |
+| gradient boosting + neighbour-mean features | 0.911 ± 0.013 | 0.979 ± 0.004 | 0.859 ± 0.014 | 0.976 ± 0.017 |
+| MLP | 0.889 ± 0.016 | 0.972 ± 0.003 | 0.845 ± 0.008 | 0.969 ± 0.014 |
+| GraphSAGE | 0.876 ± 0.020 | 0.966 ± 0.005 | 0.824 ± 0.016 | 0.969 ± 0.014 |
+| GAT | 0.681 ± 0.057 | 0.905 ± 0.019 | 0.659 ± 0.052 | 0.844 ± 0.048 |
+| GCN | 0.548 ± 0.025 | 0.877 ± 0.013 | 0.510 ± 0.017 | 0.744 ± 0.033 |
 
-![PR-AUC of every model over ten random splits](docs/figures/model_comparison.png)
+![PR-AUC differences to tuned gradient boosting, paired by split](docs/figures/paired_contrasts.png)
 
-Paired by seed (same split for every model), PR-AUC differences with bootstrap 95% CIs:
+Paired differences to tuned gradient boosting (PR-AUC, bootstrap 95% CI over the 10 splits):
+adding neighbour-mean features **+0.001** [−0.007, +0.007] (7/10 splits better, i.e. no measurable
+gain); random forest +0.002 [−0.000, +0.005]; GraphSAGE −0.034 [−0.045, −0.023] (0/10); MLP
+−0.021; GAT −0.229; GCN −0.362 (0/10).
 
-![Paired PR-AUC differences to plain gradient boosting](docs/figures/paired_contrasts.png)
+**The conclusion changed with tuning, and that is the main lesson.** With default settings,
+gradient boosting + neighbour features beat plain gradient boosting by +0.017 [+0.013, +0.021]
+(10/10 splits) and looked like evidence that graph structure helps. After giving every model the
+same search budget, plain gradient boosting rises to 0.910 and the gap disappears. The search
+changed PR-AUC by −0.005 to +0.023 for every model except GAT (+0.086; part of that gap may
+be the different evaluation nodes), and GCN stayed at 0.55.
 
-- gradient boosting with neighbour-averaged features beats plain gradient boosting by +0.017
-  [+0.013, +0.021] (10/10 seeds) and beats GraphSAGE by 0.054 [0.047, 0.063] (10/10 seeds);
-- GraphSAGE is 0.037 [0.030, 0.045] below plain gradient boosting (0/10 seeds better);
-- GCN and GAT are far below every other model (−0.346 and −0.303 against gradient boosting).
+![Default settings against tuned settings for every model](docs/figures/tuned_comparison.png)
 
-The denser UVU relation (2.07 M edges, 3 seeds, 60 epochs) gives the same ordering: gradient
-boosting + neighbour features 0.917 ± 0.008, plain gradient boosting 0.905 ± 0.005, GraphSAGE
-0.862 ± 0.008, GCN 0.574 ± 0.025.
+**What this supports.** On this graph, tuned tree ensembles (0.91) are at least as good as every
+GNN tested; GraphSAGE (0.876) is roughly on par with an MLP (0.889) and logistic regression
+(0.886); GCN and GAT are far behind. Fraud users mostly connect to non-fraud users, which fits
+GCN/GAT mixing a node with its neighbours: only 17.7% of a fraud node's UPU neighbours are fraud
+(base rate 9.5%) and edge homophily is 0.785, below the 0.828 expected under random wiring.
+GraphSAGE keeps a separate self term and does much better. That explanation is consistent with
+the measurements but was not tested by an intervention.
 
 ![Share of a fraud user's neighbours that are fraud](docs/figures/neighbourhood.png)
 
-**Reading these results.** On this graph an untuned tree ensemble matches or beats
-every GNN, and most of what graph structure contributes is captured by simply averaging
-neighbours' features. GCN and GAT mix a node's features with its neighbours' without a
-separate self-weight; here only 17.7% of a fraud node's UPU neighbours are themselves fraud
-(base rate 9.5%) and edge homophily (0.785) is below the 0.828 expected under random
-wiring, so neighbourhood averaging dilutes the fraud signal. GraphSAGE keeps a separate self
-term and is far better. That explanation fits the measurements but was not tested by an
-intervention.
-
-**Caveats.** All models use default or lightly set hyper-parameters; the GNNs were not tuned
-(2 layers, 64 hidden units, 100 epochs, learning rate 5e-3), so the GCN/GAT gap may shrink
-with tuning. One relation per run. Random, non-temporal splits with transductive training
-(test-node features and edges are visible during training, labels are not). This graph says
+**Caveats.** One graph and one relation (the denser UVU relation, run with default settings on 3
+seeds, gives the same ordering: `results/amazon/static_uvu.json`). Random, non-temporal splits
+with transductive training. The tuned and default runs use different amounts of labelled data
+(20% reserved for tuning), so their numbers are not directly comparable. Eight random-search
+trials per family is a modest budget; GNNs might gain more from a larger search. This graph says
 nothing about temporal drift; the Elliptic study below is still pending.
 
 ## Quick start

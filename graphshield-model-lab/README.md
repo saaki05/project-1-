@@ -58,7 +58,7 @@ use synthetic graphs purely to verify code paths and say nothing about real frau
 
 | Experiment | Status |
 |---|---|
-| Amazon fraud graph, static, 10 seeds (UPU relation; UVU with 3 seeds) | **run**: `results/amazon/` (summary in the repository README) |
+| Amazon fraud graph, static, 10 seeds (UPU relation; UVU with 3 seeds) | **run**: `results/amazon/` (default and tuned runs; summary in the repository README) |
 | Elliptic, temporal split (train 1–29, val 30–34, test 35–49) | not yet run (download unreachable from the development container) |
 | Drift mitigation (rolling windows) | implemented and tested on synthetic graphs only; not yet run on Elliptic |
 | Ablations (depth, aggregation, undirected edges) | not yet run |
