@@ -109,3 +109,26 @@ def test_drift_cli(tmp_path, capsys):
                      "--window", "8", "--horizon", "3", "--static-train-end", "8",
                      "--static-val-end", "10", "--out", str(tmp_path / "o.json")])
     assert code == 0 and "rolling wins" in capsys.readouterr().out
+
+
+def test_static_study_runs_end_to_end_with_paired_contrasts(tmp_path, capsys):
+    from graphshield_data.store import save_graph
+
+    from graphshield_lab.cli import main as lab_main
+    from graphshield_lab.static import render_static, run_static_study
+
+    g = make_synthetic_graph(num_steps=3, nodes_per_step=200, num_features=8,
+                             labelled_fraction=0.9, seed=4)
+    res = run_static_study(g, ["logreg", "hgb", "sage"], [0, 1, 2], TrainConfig(epochs=25),
+                           references=("logreg",))
+    assert set(res["summary"]) == {"logreg", "hgb", "sage"} and res["seeds"] == [0, 1, 2]
+    c = res["pr_auc_contrasts"]["logreg"]
+    assert set(c) == {"hgb", "sage"} and all(v["n"] == 3 for v in c.values())
+    assert all(v["ci_low"] <= v["mean_diff"] <= v["ci_high"] for v in c.values())
+    text = render_static(res)
+    assert "| sage |" in text and "paired by seed" in text
+    save_graph(g, tmp_path / "d")
+    code = lab_main(["static", "--data", str(tmp_path / "d"), "--models", "logreg", "hgb",
+                     "--seeds", "0", "1", "--epochs", "10", "--out", str(tmp_path / "o.json")])
+    assert code == 0 and (tmp_path / "o.json").exists()
+    assert "PR-AUC" in capsys.readouterr().out

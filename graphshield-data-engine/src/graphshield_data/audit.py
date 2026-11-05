@@ -70,7 +70,7 @@ def audit_split(g: GraphData, split: Split) -> AuditReport:
         else:
             rep.add(INFO, "class-balance", f"{name}: n={int(m.sum())}, illicit rate={rate:.4f}")
 
-    if split.train.any() and split.test.any():
+    if split.check_time and split.train.any() and split.test.any():
         if g.timestep[split.train].max() >= g.timestep[split.test].min():
             rep.add(ERROR, "temporal-order", "training nodes are not strictly earlier than test")
         if split.val.any() and g.timestep[split.train].max() >= g.timestep[split.val].min():
@@ -89,6 +89,9 @@ def audit_split(g: GraphData, split: Split) -> AuditReport:
         )
     else:
         rep.add(INFO, "cross-split-edges", "no edges connect train and evaluation nodes")
+    if not split.check_time:
+        rep.add(INFO, "static-split", "no temporal ordering was checked (static graph); "
+                "evaluation is transductive")
 
     if split.train.any() and split.test.any():
         dup = len(_row_hashes(g.features[split.train]) & _row_hashes(g.features[split.test]))

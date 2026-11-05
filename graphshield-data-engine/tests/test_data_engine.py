@@ -100,3 +100,55 @@ def test_cli_end_to_end(tmp_path, capsys):
     assert main(["synth", "--out", str(out), "--steps", "10", "--nodes-per-step", "80"]) == 0
     assert main(["audit", "--data", str(out), "--train-end", "6", "--val-end", "8"]) == 0
     assert "RESULT: OK" in capsys.readouterr().out
+
+
+def test_stratified_split_preserves_ratio_and_is_audited(graph):
+    from graphshield_data import stratified_split
+
+    sp = stratified_split(graph, seed=1)
+    assert not sp.check_time
+    rate = (graph.labels[graph.labels >= 0] == 1).mean()
+    for m in (sp.train, sp.val, sp.test):
+        assert (graph.labels[m] >= 0).all()
+        assert abs((graph.labels[m] == 1).mean() - rate) < 0.03
+    assert not (sp.train & sp.val).any() and not (sp.train & sp.test).any()
+    rep = audit_split(graph, sp)
+    assert rep.ok and any(f.code == "static-split" for f in rep.findings)
+    assert not np.array_equal(stratified_split(graph, seed=2).train, sp.train)
+    with pytest.raises(ValueError):
+        stratified_split(graph, fractions=(0.5, 0.2, 0.2))
+
+
+def test_audit_still_catches_overlap_on_static_splits(graph):
+    from graphshield_data import stratified_split
+    from graphshield_data.splits import Split
+
+    sp = stratified_split(graph, seed=0)
+    leaky = Split(sp.name, sp.train, sp.val, sp.test | sp.train, check_time=False)
+    assert not audit_split(graph, leaky).ok
+
+
+def test_amazon_loader_marks_prefix_unknown_and_handles_relations(tmp_path):
+    import scipy.io as sio
+    import scipy.sparse as sp
+
+    from graphshield_data.amazon import load_amazon
+
+    n = 40
+    rng = np.random.default_rng(0)
+    a = sp.random(n, n, density=0.2, random_state=1, format="csr")
+    a = ((a + a.T) > 0).astype(float)
+    a.setdiag(1.0)  # self loops must be dropped by the loader
+    feats = sp.csc_matrix(rng.random((n, 5)))
+    labels = np.zeros((1, n))
+    labels[0, 20:] = rng.integers(0, 2, n - 20)
+    sio.savemat(tmp_path / "Amazon.mat", {"homo": sp.csc_matrix(a), "net_upu": sp.csc_matrix(a),
+                                          "net_usu": sp.csc_matrix(a), "net_uvu": sp.csc_matrix(a),
+                                          "features": feats, "label": labels})
+    g = load_amazon(tmp_path / "Amazon.mat", "upu", unlabelled_prefix=10)
+    assert g.num_nodes == n and g.num_features == 5
+    assert (g.labels[:10] == -1).all() and set(np.unique(g.labels[10:])) <= {0, 1}
+    assert (g.edge_index[0] != g.edge_index[1]).all() and (g.timestep == 1).all()
+    assert load_amazon(tmp_path / "Amazon.mat", "homo", 10).num_edges == g.num_edges
+    with pytest.raises(ValueError):
+        load_amazon(tmp_path / "Amazon.mat", "nope")

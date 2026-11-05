@@ -15,6 +15,7 @@ graph neural networks against tabular baselines under one leak-aware protocol.
 | Neural feature-only baseline | `mlp` |
 | Metrics | PR-AUC, ROC-AUC, F1 and MCC at a validation-chosen threshold, precision@k, ECE, per-time-step metrics, bootstrap CIs, paired bootstrap difference tests |
 | Harness | Multi-seed runs, leakage-audit gate (refuses to run on a split that fails `graphshield-data audit`), JSON output |
+| Static-graph study | `graphshield-lab static`: a fresh stratified split per seed, every model on the same split, paired PR-AUC contrasts with bootstrap CIs over seeds |
 | Drift study | `graphshield-lab drift`: static training vs rolling-window retraining, evaluated block by block on identical test nodes (every training split audited) |
 
 ## Evaluation protocol
@@ -44,6 +45,8 @@ graphshield-lab run --data data/elliptic --train-end 29 --val-end 34 \
     --models logreg rf hgb hgb+agg gcn sage gat --seeds 0 1 2 3 4 --out results/main.json
 graphshield-lab drift --data data/elliptic --models hgb gcn sage --window 12 --horizon 4 \
     --static-train-end 29 --static-val-end 34 --out results/drift.json
+graphshield-lab static --amazon /path/to/Amazon.mat --relation upu --seeds 0 1 2 3 4 5 6 7 8 9 \
+    --out results/amazon/static_upu.json
 graphshield-lab models      # list available model names
 ```
 
@@ -55,7 +58,8 @@ use synthetic graphs purely to verify code paths and say nothing about real frau
 
 | Experiment | Status |
 |---|---|
-| Elliptic, temporal split (train 1–29, val 30–34, test 35–49) | not yet run |
+| Amazon fraud graph, static, 10 seeds (UPU relation; UVU with 3 seeds) | **run**: `results/amazon/` (summary in the repository README) |
+| Elliptic, temporal split (train 1–29, val 30–34, test 35–49) | not yet run (download unreachable from the development container) |
 | Drift mitigation (rolling windows) | implemented and tested on synthetic graphs only; not yet run on Elliptic |
 | Ablations (depth, aggregation, undirected edges) | not yet run |
 

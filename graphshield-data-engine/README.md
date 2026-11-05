@@ -10,6 +10,10 @@ sees data:
 - strict temporal splits and rolling windows for drift-aware retraining;
 - a **split auditor** that detects overlap, look-ahead, unlabeled evaluation nodes,
   train/test edges (transductive leakage) and duplicated feature rows;
+- a loader for the Amazon fraud graph (`load_amazon`, all four relations; the 3,305
+  placeholder-labelled nodes are marked unknown) and `stratified_split` for graphs without
+  time information (audited with ordering checks switched off and a note that evaluation is
+  transductive);
 - a synthetic generator used only for tests and smoke runs.
 
 It has no deep-learning dependency (NumPy, pandas, pyarrow only).
@@ -60,7 +64,8 @@ Labels: `-1` unknown, `0` licit, `1` illicit.
 
 ## Status
 
-`v0.1.0`: Elliptic layout only. Planned: Elliptic++ and synthetic-AML loaders.
+`v0.1.0`: Elliptic layout and Amazon fraud graph (`pip install -e ".[amazon]"` for scipy).
+Planned: Elliptic++ and synthetic-AML loaders.
 
 ## License
 

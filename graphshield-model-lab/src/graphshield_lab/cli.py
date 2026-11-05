@@ -73,6 +73,15 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--epochs", type=int, default=200)
     run.add_argument("--out", default=None)
     sub.add_parser("models")
+    st = sub.add_parser("static", help="compare models on a graph without time information")
+    st.add_argument("--amazon", default=None, help="path to Amazon.mat")
+    st.add_argument("--relation", default="upu", choices=["homo", "upu", "usu", "uvu"])
+    st.add_argument("--data", default=None, help="or a graphshield-data directory")
+    st.add_argument("--models", nargs="+",
+                    default=["logreg", "rf", "hgb", "hgb+agg", "mlp", "gcn", "sage", "gat"])
+    st.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4])
+    st.add_argument("--epochs", type=int, default=100)
+    st.add_argument("--out", default=None)
     dr = sub.add_parser("drift", help="static vs rolling-window retraining, block by block")
     dr.add_argument("--data", required=True)
     dr.add_argument("--models", nargs="+", default=["hgb", "gcn", "sage"])
@@ -87,6 +96,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "models":
         print("\n".join(available_models()))
+        return 0
+    if args.command == "static":
+        from graphshield_data.amazon import load_amazon
+
+        from graphshield_lab.static import render_static, run_static_study
+
+        if bool(args.amazon) == bool(args.data):
+            raise SystemExit("give exactly one of --amazon or --data")
+        graph = (load_amazon(args.amazon, args.relation) if args.amazon
+                 else load_graph(args.data))
+        res = run_static_study(graph, args.models, args.seeds, TrainConfig(epochs=args.epochs))
+        print(render_static(res))
+        if args.out:
+            Path(args.out).write_text(json.dumps(res, indent=2))
         return 0
 
     graph = load_graph(args.data)

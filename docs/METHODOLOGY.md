@@ -32,6 +32,14 @@ step. Obtain it from its official source and check its license; it is not redist
 5. Test metrics are computed once with those choices fixed; results are reported as mean ±
    std over seeds, with bootstrap intervals and paired bootstrap tests between models.
 
+## Static-graph protocol (Amazon fraud graph)
+
+Without timestamps there is no temporal split. Each seed draws a stratified 40/20/40
+train/validation/test split of the labelled nodes (a fresh split per seed), every model is
+trained and evaluated on that same split, and models are compared *paired by seed*.
+Training is transductive (the whole graph and all features are visible, only training labels
+are used). The first 3,305 nodes carry placeholder labels and are treated as unknown.
+
 ## Models
 
 Logistic regression, random forest, histogram gradient boosting, each also with one-hop mean
