@@ -78,3 +78,34 @@ def test_evaluate_uses_validation_threshold(setup):
     m = evaluate(pred, g, split)
     assert set(m) >= {"pr_auc", "roc_auc", "f1", "mcc", "precision_at_100", "ece"}
     assert "gat" in available_models()
+
+
+def test_drift_study_rolling_retraining_recovers_after_concept_shift():
+    from graphshield_lab.drift import drift_study
+
+    g = make_synthetic_graph(num_steps=30, nodes_per_step=250, num_features=10,
+                             labelled_fraction=0.9, shift_step=17, shift_strength=1.0, seed=11)
+    res = drift_study(g, ["logreg"], [0], window=10, horizon=4, static_train_end=10,
+                      static_val_end=12, cfg=TrainConfig(epochs=30))
+    ok = [r for r in res["rows"] if "gain" in r]
+    assert ok and all(0 <= r["static_pr_auc"] <= 1 and 0 <= r["rolling_pr_auc"] <= 1 for r in ok)
+    # blocks fully after the shift: a model retrained on post-shift data should win
+    late = [r for r in ok if r["block"][0] >= 25]
+    assert late and np.mean([r["gain"] for r in late]) > 0.05
+    assert res["summary"]["logreg"]["blocks"] == len(ok)
+    # every block starts after the static validation window
+    assert all(r["block"][0] > 12 for r in ok)
+
+
+def test_drift_cli(tmp_path, capsys):
+    from graphshield_data.store import save_graph
+
+    from graphshield_lab.cli import main as lab_main
+
+    g = make_synthetic_graph(num_steps=24, nodes_per_step=150, num_features=8,
+                             labelled_fraction=0.9, shift_step=15, shift_strength=1.0, seed=3)
+    save_graph(g, tmp_path / "d")
+    code = lab_main(["drift", "--data", str(tmp_path / "d"), "--models", "logreg", "--seeds", "0",
+                     "--window", "8", "--horizon", "3", "--static-train-end", "8",
+                     "--static-val-end", "10", "--out", str(tmp_path / "o.json")])
+    assert code == 0 and "rolling wins" in capsys.readouterr().out

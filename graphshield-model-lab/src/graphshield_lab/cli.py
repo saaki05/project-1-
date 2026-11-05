@@ -73,6 +73,16 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--epochs", type=int, default=200)
     run.add_argument("--out", default=None)
     sub.add_parser("models")
+    dr = sub.add_parser("drift", help="static vs rolling-window retraining, block by block")
+    dr.add_argument("--data", required=True)
+    dr.add_argument("--models", nargs="+", default=["hgb", "gcn", "sage"])
+    dr.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
+    dr.add_argument("--window", type=int, default=10)
+    dr.add_argument("--horizon", type=int, default=3)
+    dr.add_argument("--static-train-end", type=int, default=None)
+    dr.add_argument("--static-val-end", type=int, default=None)
+    dr.add_argument("--epochs", type=int, default=200)
+    dr.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
     if args.command == "models":
@@ -80,6 +90,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     graph = load_graph(args.data)
+    if args.command == "drift":
+        from graphshield_lab.drift import drift_study
+
+        res = drift_study(graph, args.models, args.seeds, args.window, args.horizon,
+                          args.static_train_end, args.static_val_end,
+                          TrainConfig(epochs=args.epochs))
+        for model, s in res["summary"].items():
+            print(f"{model:<10} static {s['mean_static']:.3f}  rolling {s['mean_rolling']:.3f}  "
+                  f"gain {s['mean_gain']:+.3f}  rolling wins {s['blocks_where_rolling_wins']}/"
+                  f"{s['blocks']} blocks")
+        if args.out:
+            Path(args.out).write_text(json.dumps(res, indent=2))
+        return 0
     split = temporal_split(
         graph,
         train=(int(graph.timestep.min()), args.train_end),

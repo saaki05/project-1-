@@ -40,11 +40,14 @@ architecture.
 | Layers verified against dense reference computations | yes |
 | Cross-check against PyTorch Geometric | GCN, GraphSAGE and GAT layers match `torch_geometric` outputs to 1e-5 (tests run when PyG is installed; verified in development) |
 | Experiments on the real Elliptic dataset | **not run**: the data must be downloaded under its own license and the work needs your Kaggle/Colab account |
-| Hyperparameter search, ablations, statistical comparison tables | **not run** |
+| Static-vs-rolling drift study (`graphshield-lab drift`) | implemented; tested on synthetic graphs with a built-in concept shift (rolling retraining wins there, as expected, which only shows the code works) |
+| Hyperparameter search, ablations, statistical comparison tables on real data | **not run**; `scripts/run_elliptic.sh` reproduces the planned runs once the data is available |
 | Docker image | Dockerfile written, never built |
 
 No benchmark numbers appear in this repository because none have been measured on real data.
-Smoke runs on synthetic graphs only verify that the code executes.
+Smoke runs on synthetic graphs only verify that the code executes. The Elliptic download was
+not reachable from the development container (Kaggle and the PyG mirror were blocked), and
+the container has no GPU.
 
 ## Quick start
 
